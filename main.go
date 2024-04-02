@@ -15,6 +15,7 @@ import (
 )
 
 type Config struct {
+	MetricPort           int    `env:"METRICS_PORT" envDefault:"8080"`
 	SpeedtestThreadCount int    `env:"SPEEDTEST_THREAD_COUNT" envDefault:"64"`
 	LogLevel             string `env:"LOG_LEVEL" envDefault:"INFO"`
 }
@@ -101,7 +102,10 @@ func main() {
 	c.Start()
 
 	http.Handle("/metrics", promhttp.HandlerFor(&registry, promhttp.HandlerOpts{Registry: &registry}))
-	http.ListenAndServe(":8080", nil)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", config.MetricPort), nil); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 
 }
 
