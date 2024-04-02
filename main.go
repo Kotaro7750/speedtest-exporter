@@ -80,7 +80,7 @@ func main() {
 	slog.Info(fmt.Sprintf("Speedtest run schedule is %s", cronSchedule))
 
 	c := cron.New()
-	c.AddFunc(cronSchedule, func() {
+	err = c.AddFunc(cronSchedule, func() {
 		speedtestClient := speedtest.New()
 		speedtestClient.SetNThread(config.SpeedtestThreadCount)
 
@@ -98,6 +98,11 @@ func main() {
 			return
 		}
 	})
+
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
 
 	c.Start()
 
