@@ -15,9 +15,10 @@ import (
 )
 
 type Config struct {
-	MetricPort           int    `env:"METRICS_PORT" envDefault:"8080"`
-	SpeedtestThreadCount int    `env:"SPEEDTEST_THREAD_COUNT" envDefault:"64"`
-	LogLevel             string `env:"LOG_LEVEL" envDefault:"INFO"`
+	MetricPort            int    `env:"METRICS_PORT" envDefault:"8080"`
+	SpeedTestCronSchedule string `env:"SPEEDTEST_CRON_SCHEDULE" envDefault:"@every 30m"`
+	SpeedtestThreadCount  int    `env:"SPEEDTEST_THREAD_COUNT" envDefault:"64"`
+	LogLevel              string `env:"LOG_LEVEL" envDefault:"INFO"`
 }
 
 type Metrics struct {
@@ -76,11 +77,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	cronSchedule := "@every 1m"
-	slog.Info(fmt.Sprintf("Speedtest run schedule is %s", cronSchedule))
+	slog.Info(fmt.Sprintf("Speedtest run schedule is %s", config.SpeedTestCronSchedule))
 
 	c := cron.New()
-	err = c.AddFunc(cronSchedule, func() {
+	err = c.AddFunc(config.SpeedTestCronSchedule, func() {
 		speedtestClient := speedtest.New()
 		speedtestClient.SetNThread(config.SpeedtestThreadCount)
 
