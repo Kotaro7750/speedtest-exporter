@@ -3,67 +3,71 @@ package main
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/showwin/speedtest-go/speedtest"
 )
+
+type Metrics struct {
+	DLSpeed prometheus.Gauge
+	ULSpeed prometheus.Gauge
+}
+
+var registry prometheus.Registry
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	speedtestClient := speedtest.New()
-	speedtestClient.SetNThread(64)
+	registry = *prometheus.NewRegistry()
 
-	user, err := speedtestClient.FetchUserInfo()
+	metrics := Metrics{
+		prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "speedtest",
+			Name:      "download_speed_mbps",
+		}),
+		prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "speedtest",
+			Name:      "upload_speed_mbps",
+		}),
+	}
+
+	err := registry.Register(metrics.DLSpeed)
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
 
-	slog.Info("Fetch userInfo done", "user", user)
-
-	doSpeedTestMulti(*speedtestClient)
-}
-
-func doSpeedTestSingle(speedtestClient speedtest.Speedtest) {
-	servers, err := speedtestClient.FetchServers()
+	err = registry.Register(metrics.ULSpeed)
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
 
-	slog.Debug("Fetch servers done", "servers", servers)
+	go func() {
+		speedtestClient := speedtest.New()
+		speedtestClient.SetNThread(64)
 
-	targets, err := servers.Available().FindServer([]int{})
-	if err != nil {
-		slog.Error(err.Error())
-		os.Exit(1)
-	}
-
-	for _, s := range targets {
-		slog.Info("Start speedtest", "server", s)
-
-		slog.Info("Start download test")
-		err := s.DownloadTest()
+		user, err := speedtestClient.FetchUserInfo()
 		if err != nil {
 			slog.Error(err.Error())
 			os.Exit(1)
 		}
 
-		slog.Info("Start upload test")
-		err = s.UploadTest()
-		if err != nil {
-			slog.Error(err.Error())
-			os.Exit(1)
-		}
+		slog.Info("Fetch userInfo done", "user", user)
 
-		slog.Info("Speedtest is done", "latencyUs", s.Latency.Microseconds(), "download", s.DLSpeed, "upload", s.ULSpeed)
-		s.Context.Reset()
-	}
+		doSpeedTestMulti(*speedtestClient, &metrics)
+	}()
+
+	http.Handle("/metrics", promhttp.HandlerFor(&registry, promhttp.HandlerOpts{Registry: &registry}))
+	http.ListenAndServe(":8080", nil)
+
 }
 
-func doSpeedTestMulti(speedtestClient speedtest.Speedtest) {
+func doSpeedTestMulti(speedtestClient speedtest.Speedtest, metrics *Metrics) {
 	servers, err := speedtestClient.FetchServers()
 	if err != nil {
 		slog.Error(err.Error())
@@ -88,6 +92,9 @@ func doSpeedTestMulti(speedtestClient speedtest.Speedtest) {
 			slog.Error(err.Error())
 			os.Exit(1)
 		}
+
+		metrics.DLSpeed.Set(target.DLSpeed)
+		metrics.ULSpeed.Set(target.ULSpeed)
 
 		slog.Info("Speedtest is done", "latencyUs", target.Latency.Microseconds(), "download", target.DLSpeed, "upload", target.ULSpeed)
 		target.Context.Reset()
