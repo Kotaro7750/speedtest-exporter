@@ -6,11 +6,17 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/caarlos0/env/v10"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/robfig/cron"
 	"github.com/showwin/speedtest-go/speedtest"
 )
+
+type Config struct {
+	SpeedtestThreadCount int    `env:"SPEEDTEST_THREAD_COUNT" envDefault:"64"`
+	LogLevel             string `env:"LOG_LEVEL" envDefault:"INFO"`
+}
 
 type Metrics struct {
 	DLSpeed prometheus.Gauge
@@ -20,7 +26,20 @@ type Metrics struct {
 var registry prometheus.Registry
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	config := Config{}
+	if err := env.Parse(&config); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+
+	var logLevel slog.Level
+	err := logLevel.UnmarshalText([]byte(config.LogLevel))
+	if err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
 	registry = *prometheus.NewRegistry()
@@ -36,7 +55,7 @@ func main() {
 		}),
 	}
 
-	err := registry.Register(metrics.DLSpeed)
+	err = registry.Register(metrics.DLSpeed)
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
@@ -51,7 +70,7 @@ func main() {
 	c := cron.New()
 	c.AddFunc("@every 1m", func() {
 		speedtestClient := speedtest.New()
-		speedtestClient.SetNThread(64)
+		speedtestClient.SetNThread(config.SpeedtestThreadCount)
 
 		user, err := speedtestClient.FetchUserInfo()
 		if err != nil {
