@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,6 +27,11 @@ type Metrics struct {
 var registry prometheus.Registry
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	slog.Info("Start speedtest-exporter")
+
 	config := Config{}
 	if err := env.Parse(&config); err != nil {
 		slog.Error(err.Error())
@@ -39,8 +45,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
+
+	slog.Info("speedtest-exporter config", "config", config)
 
 	registry = *prometheus.NewRegistry()
 
@@ -67,8 +75,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	cronSchedule := "@every 1m"
+	slog.Info(fmt.Sprintf("Speedtest run schedule is %s", cronSchedule))
+
 	c := cron.New()
-	c.AddFunc("@every 1m", func() {
+	c.AddFunc(cronSchedule, func() {
 		speedtestClient := speedtest.New()
 		speedtestClient.SetNThread(config.SpeedtestThreadCount)
 
