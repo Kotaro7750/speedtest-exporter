@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/caarlos0/env/v10"
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,10 +16,11 @@ import (
 )
 
 type Config struct {
-	MetricPort            int    `env:"METRICS_PORT" envDefault:"8080"`
-	SpeedTestCronSchedule string `env:"SPEEDTEST_CRON_SCHEDULE" envDefault:"@every 30m"`
-	SpeedtestThreadCount  int    `env:"SPEEDTEST_THREAD_COUNT" envDefault:"64"`
-	LogLevel              string `env:"LOG_LEVEL" envDefault:"INFO"`
+	MetricPort            int           `env:"METRICS_PORT" envDefault:"8080"`
+	SpeedTestCronSchedule string        `env:"SPEEDTEST_CRON_SCHEDULE" envDefault:"@every 30m"`
+	SpeedTestDuration     time.Duration `env:"SPEEDTEST_DURATION" envDefault:"15s"`
+	SpeedtestThreadCount  int           `env:"SPEEDTEST_THREAD_COUNT" envDefault:"64"`
+	LogLevel              string        `env:"LOG_LEVEL" envDefault:"INFO"`
 }
 
 type Metrics struct {
@@ -91,6 +93,8 @@ func main() {
 		}
 
 		slog.Debug("Fetch userInfo done", "user", user)
+
+		speedtestClient.SetCaptureTime(config.SpeedTestDuration)
 
 		doSpeedTestMulti(*speedtestClient, &metrics)
 		if err != nil {
