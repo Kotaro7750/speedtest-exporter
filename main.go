@@ -149,10 +149,13 @@ func doSpeedTestMulti(speedtestClient speedtest.Speedtest, metrics *Metrics) err
 	}
 	slog.Debug("Upload test is done")
 
-	metrics.DLSpeed.Set(target.DLSpeed)
-	metrics.ULSpeed.Set(target.ULSpeed)
+	dlSpeed := target.DLSpeed
+	ulSpeed := target.ULSpeed
 
-	slog.Info("Speedtest is done", "latencyMs", target.Latency.Milliseconds(), "download", target.DLSpeed, "upload", target.ULSpeed)
+	metrics.DLSpeed.Set(dlSpeed)
+	metrics.ULSpeed.Set(ulSpeed)
+
+	slog.Info("Speedtest is done", "latencyMs", target.Latency.Milliseconds(), "downloadMbps", dlSpeed, "uploadMbps", ulSpeed)
 	target.Context.Reset()
 
 	return nil
